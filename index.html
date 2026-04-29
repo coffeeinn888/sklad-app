@@ -7,25 +7,25 @@
     <link rel="manifest" href="manifest.json">
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; margin: 0; padding: 15px; color: #333; }
-        h2 { text-align: center; color: #007bff; }
-        .btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; box-sizing: border-box; }
+        h2 { text-align: center; color: #007bff; margin-bottom: 20px; }
+        .btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         .btn-blue { background: #007bff; }
         .btn-green { background: #28a745; }
         .btn-purple { background: #6f42c1; }
-        .btn-orange { background: #fd7e14; text-align: center; text-decoration: none; }
-        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: black; margin-top: 10px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 10px; }
-        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; }
-        .loc-tag { float: right; font-weight: bold; color: #d9534f; }
-        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; margin: 10px 0; }
+        .btn-orange { background: #fd7e14; text-align: center; text-decoration: none; line-height: 1.5; }
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: black; margin-top: 10px; display: none; min-height: 250px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 15px; }
+        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; }
+        .loc-tag { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; }
+        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; margin: 10px 0; background: white; }
     </style>
 </head>
 <body>
 
     <h2>📦 Складской Терминал</h2>
 
-    <button class="btn btn-blue" onclick="scanNewEntry()">➕ ВНЕСТИ НОВОЕ (QR)</button>
-    <button class="btn btn-green" onclick="scanForTransfer()">🔄 ВЫДАТЬ / ПЕРЕМЕСТИТЬ (QR)</button>
+    <button class="btn btn-blue" id="btnNew">➕ ВНЕСТИ НОВОЕ (QR)</button>
+    <button class="btn btn-green" id="btnTransfer">🔄 ВЫДАТЬ / ПЕРЕМЕСТИТЬ (QR)</button>
 
     <div id="reader"></div>
     <div id="transfer-zone"></div>
@@ -42,12 +42,12 @@
 
     <div id="inventory-list"></div>
 
-    <!-- Библиотеки -->
-    <script src="https://unpkg.com"></script>
-    <script src="app.js"></script>
+    <!-- Подключаем библиотеку через надежный CDN -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="app.js?v=2.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            navigator.worker = navigator.serviceWorker.register('sw.js');
         }
     </script>
 </body>

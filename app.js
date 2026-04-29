@@ -1,36 +1,36 @@
-// 1. Инициализация базы
 let db = JSON.parse(localStorage.getItem('inventory')) || [];
-const LOCATIONS = ["Комплект", ...Array.from({length: 15}, (_, i) => `Лиса-${i + 1}`)];
+const LOCATIONS = ["Комплект", ...Array.from({length: 15}, (_, i) => "Лиса-" + (i + 1))];
+let html5QrCode = null;
+
+// Инициализация при загрузке
+window.addEventListener('load', () => {
+    renderInventory();
+    document.getElementById('btnNew').addEventListener('click', () => scan(true));
+    document.getElementById('btnTransfer').addEventListener('click', () => scan(false));
+    console.log("Система готова");
+});
 
 function saveDB() {
     localStorage.setItem('inventory', JSON.stringify(db));
     renderInventory();
 }
 
-// 2. Глобальная переменная для сканера
-let html5QrCode = null;
-
-// ФУНКЦИЯ ЗАПУСКА КАМЕРЫ
-async function startCamera(onSuccess) {
-    // Проверка: загрузилась ли библиотека?
+async function scan(isNew) {
+    const readerDiv = document.getElementById("reader");
+    
     if (typeof Html5Qrcode === 'undefined') {
-        alert("Ошибка: Библиотека сканера еще не загружена. Проверьте интернет или обновите страницу.");
+        alert("Ошибка: Библиотека сканера не загружена! Проверьте интернет.");
         return;
     }
 
-    const readerDiv = document.getElementById("reader");
-    readerDiv.style.display = "block"; // Показываем окно камеры
-
+    readerDiv.style.display = "block";
     if (html5QrCode) {
-        await html5QrCode.stop().catch(() => {}); // Остановить старый сеанс если был
+        try { await html5QrCode.stop(); } catch(e) {}
     }
 
     html5QrCode = new Html5Qrcode("reader");
-
-    const config = { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 }
-    };
+    
+    const config = { fps: 10, qrbox: 250, aspectRatio: 1.0 };
 
     html5QrCode.start(
         { facingMode: "environment" }, 
@@ -38,80 +38,70 @@ async function startCamera(onSuccess) {
         (text) => {
             html5QrCode.stop().then(() => {
                 readerDiv.style.display = "none";
-                onSuccess(text);
+                if (isNew) processNewEntry(text);
+                else processTransfer(text);
             });
         }
     ).catch(err => {
-        alert("Камера не запустилась. Проверьте: \n1. HTTPS в адресе \n2. Разрешение в настройках Safari");
-        console.error(err);
+        alert("Камера не запустилась. Убедитесь, что сайт открыт через HTTPS и доступ разрешен в настройках.");
+        readerDiv.style.display = "none";
     });
 }
 
-// ЛОГИКА ВНЕСЕНИЯ (ПЕРВИЧНОГО)
-function scanNewEntry() {
-    startCamera((data) => {
-        const p = data.split('|');
-        if (p.length < 3) {
-            alert("Ошибка QR! Нужен формат: Название|Заводской|Инвентарный");
-            return;
-        }
-        const newObj = {
-            id: p[2].trim(), 
-            name: p[0].trim(),
-            serial: p[1].trim(),
-            inv: p[2].trim(),
-            loc: "Комплект"
-        };
-        if (db.find(i => i.id === newObj.id)) {
-            alert("Объект с ИНВ № " + newObj.id + " уже есть!");
-        } else {
-            db.push(newObj);
-            saveDB();
-            alert("УСПЕХ: " + newObj.name + " на складе.");
-        }
-    });
+function processNewEntry(data) {
+    const p = data.split('|');
+    if (p.length < 3) {
+        alert("Ошибка QR! Нужен формат: Название|Заводской|Инвентарный");
+        return;
+    }
+    const inv = p[2].trim();
+    if (db.find(i => i.inv === inv)) {
+        alert("Инв. № " + inv + " уже в базе!");
+        return;
+    }
+    db.push({ name: p[0].trim(), serial: p[1].trim(), inv: inv, loc: "Комплект" });
+    saveDB();
+    alert("Добавлено: " + p[0]);
 }
 
-// ЛОГИКА ПЕРЕМЕЩЕНИЯ
-function scanForTransfer() {
-    startCamera((qrId) => {
-        const idToFind = qrId.includes('|') ? qrId.split('|')[2].trim() : qrId.trim();
-        const item = db.find(i => i.id === idToFind);
-        if (!item) {
-            alert("Оборудование " + idToFind + " не найдено в базе!");
-            return;
-        }
-        showTransferUI(item);
-    });
+function processTransfer(qrData) {
+    const idToFind = qrData.includes('|') ? qrData.split('|')[2].trim() : qrData.trim();
+    const item = db.find(i => i.inv === idToFind);
+    if (!item) {
+        alert("Оборудование не найдено!");
+        return;
+    }
+    showTransferUI(item);
 }
 
 function showTransferUI(item) {
     const container = document.getElementById("transfer-zone");
     let options = LOCATIONS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
     container.innerHTML = `
-        <div class="card" style="border: 2px solid #28a745; padding: 15px;">
-            <h3>📍 Смена места</h3>
-            <p><b>${item.name}</b></p>
+        <div class="card" style="border: 2px solid #28a745;">
+            <h3>${item.name}</h3>
+            <p>Текущее место: <b>${item.loc}</b></p>
             <select id="new-loc">${options}</select>
-            <button class="btn btn-green" onclick="confirmMove('${item.id}')">💾 СОХРАНИТЬ</button>
+            <button class="btn btn-green" onclick="confirmMove('${item.inv}')">💾 СОХРАНИТЬ</button>
         </div>`;
+    container.scrollIntoView();
 }
 
-function confirmMove(id) {
-    const item = db.find(i => i.id === id);
-    const newLoc = document.getElementById("new-loc").value;
-    item.loc = newLoc;
+function confirmMove(inv) {
+    const item = db.find(i => i.inv === inv);
+    item.loc = document.getElementById("new-loc").value;
     saveDB();
     document.getElementById("transfer-zone").innerHTML = "";
-    alert("Перемещено в " + newLoc);
+    alert("Перемещено в " + item.loc);
 }
 
-// ИМПОРТ / ЭКСПОРТ
 function exportToFile() {
     const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `base.json`; a.click();
+    a.href = url;
+    a.download = `sklad_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
 }
 
 function importFromFile(event) {
@@ -120,7 +110,7 @@ function importFromFile(event) {
         try {
             db = JSON.parse(e.target.result);
             saveDB();
-            alert("База обновлена!");
+            alert("База загружена!");
         } catch (err) { alert("Ошибка файла!"); }
     };
     reader.readAsText(event.target.files[0]);
@@ -136,4 +126,3 @@ function renderInventory() {
             <small>Инв: ${i.inv} | Зав: ${i.serial}</small>
         </div>`).join('');
 }
-renderInventory();

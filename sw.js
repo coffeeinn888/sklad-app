@@ -1,9 +1,9 @@
-const CACHE_NAME = 'sklad-v2';
+const CACHE_NAME = 'sklad-v3';
 const ASSETS = [
   'index.html',
   'app.js',
   'manifest.json',
-  'https://unpkg.com'
+  'https://jsdelivr.net'
 ];
 
 self.addEventListener('install', (e) => {
