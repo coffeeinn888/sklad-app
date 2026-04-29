@@ -3,35 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Склад</title>
+    <title>СКЛАД ТЕРМИНАЛ</title>
+    <!-- Подключаем легкую библиотеку сканера -->
+    <script src="https://rawgit.com"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 15px; margin: 0; }
-        .btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
-        .btn-blue { background: #007bff; }
-        .btn-green { background: #28a745; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 15px; }
-        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; position: relative; }
-        .loc-tag { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; font-size: 12px; }
-        #loading { display: none; text-align: center; padding: 10px; color: #007bff; font-weight: bold; }
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 15px; margin: 0; }
+        .btn { width: 100%; padding: 18px; margin: 10px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; }
+        .blue { background: #007bff; }
+        .green { background: #28a745; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
+        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; }
+        .loc { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; }
+        #loading { display: none; text-align: center; padding: 10px; color: #007bff; }
+        select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 16px; }
     </style>
 </head>
 <body>
-    <h2>📦 Склад</h2>
+
+    <h2>📦 СКЛАД</h2>
+
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-blue" style="flex:1" onclick="document.getElementById('scanNew').click()">➕ ВНЕСТИ</button>
-        <button class="btn btn-green" style="flex:1" onclick="document.getElementById('scanMove').click()">🔄 ВЫДАТЬ</button>
+        <button class="btn blue" style="flex:1" onclick="document.getElementById('inputNew').click()">➕ ВНЕСТИ</button>
+        <button class="btn green" style="flex:1" onclick="document.getElementById('inputMove').click()">🔄 ВЫДАТЬ</button>
     </div>
 
-    <input type="file" id="scanNew" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this, true)">
-    <input type="file" id="scanMove" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this, false)">
+    <!-- Системные кнопки камеры -->
+    <input type="file" id="inputNew" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, true)">
+    <input type="file" id="inputMove" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, false)">
 
-    <div id="loading">⌛ Обработка...</div>
-    <div id="transfer-zone"></div>
-    <div id="inventory-list"></div>
-    <div id="qr-reader" style="display:none"></div>
+    <div id="loading">⌛ Обработка фото...</div>
+    <div id="ui"></div>
+    <div id="list"></div>
 
-    <!-- Загрузка библиотеки напрямую -->
-    <script src="https://jsdelivr.net"></script>
-    <script src="app.js?v=4.0"></script>
+    <hr>
+    <button onclick="exportData()" style="width:100%; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">💾 Скачать базу (JSON)</button>
+    <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+    <button onclick="document.getElementById('importFile').click()" style="width:100%; margin-top:5px; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">📂 Загрузить базу</button>
+
+    <script>
+        let db = JSON.parse(localStorage.getItem('sklad_db')) || [];
+        const LOCS = ["Комплект", ...Array.from({length: 15}, (_, i) => `Лиса-${i + 1}`)];
+
+        // Функция обработки фото
+        function handleFile(input, isNew) {
+            if (!input.files[0]) return;
+            document.getElementById('loading').style.display = 'block';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Сжимаем фото перед чтением
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 600;
+                    canvas.height = (img.height / img.width) * 600;
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Пробуем распознать
+                    try {
+                        qrcode.callback = (res) => {
+                            document.getElementById('loading').style.display = 'none';
+                            if (res.indexOf("error") === -1) {
+                                if (isNew) addNew(res); else moveItem(res);
+                            } else {
+                                alert("QR не найден. Попробуйте еще раз.");
+                            }
+                        };
+                        qrcode.decode(canvas.toDataURL("image/jpeg"));
+                    } catch(err) {
+                        alert("Ошибка распознавания");
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+
+        function addNew(data) {
+            const p = data.split('|');
+            if (p.length < 3) return alert("Формат QR: Название|Заводской|Инвентарный");
+            const inv = p[2].trim();
+            if (db.find(i => i.inv === inv)) return alert("Уже в базе!");
+            
+            db.push({ name: p[0].trim(), sn: p[1].trim(), inv: inv, loc: "Комплект" });
+            save();
+            alert("Добавлено в Комплект");
+        }
+
+        function moveItem(data) {
+            const inv = data.includes('|') ? data.split('|')[2].trim() : data.trim();
+            const item = db.find(i => i.inv === inv);
+            if (!item) return alert("Не найдено в базе!");
+
+            let options = LOCS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
+            document.getElementById('ui').innerHTML = `
+                <div class="card" style="border:2px solid #28a745">
+                    <b>${item.name}</b> (Инв: ${item.inv})<br>
+                    Место: <select id="newLoc">${options}</select>
+                    <button class="btn green" onclick="confirmMove('${item.inv}')">💾 СОХРАНИТЬ</button>
+                </div>`;
+        }
+
+        function confirmMove(inv) {
+            const item = db.find(i => i.inv === inv);
+            item.loc = document.getElementById('newLoc').value;
+            save();
+            document.getElementById('ui').innerHTML = '';
+            alert("Обновлено");
+        }
+
+        function save() {
+            localStorage.setItem('sklad_db', JSON.stringify(db));
+            render();
+        }
+
+        function render() {
+            document.getElementById('list').innerHTML = "<h3>Инвентарь:</h3>" + db.map(i => `
+                <div class="item"><span class="loc">${i.loc}</span><b>${i.name}</b><br><small>Инв: ${i.inv}</small></div>
+            `).reverse().join('');
+        }
+
+        function exportData() {
+            const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'sklad.json';
+            a.click();
+        }
+
+        function importData(input) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                db = JSON.parse(e.target.result);
+                save();
+                alert("База загружена");
+            };
+            reader.readAsText(input.files[0]);
+        }
+
+        render();
+    </script>
 </body>
 </html>
