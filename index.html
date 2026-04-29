@@ -3,111 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>СКЛАД 6.0</title>
-    <!-- Подключаем легкий и быстрый сканер -->
-    <script src="https://jsdelivr.net"></script>
+    <title>СКЛАД 7.0</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f4f4f9; margin: 0; }
-        .header { background: #d9534f; color: white; padding: 15px; text-align: center; font-weight: bold; }
-        .container { padding: 15px; }
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; margin: 0; padding: 15px; }
+        .header { background: #333; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin: -15px -15px 15px -15px; }
         .btn { width: 100%; padding: 18px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; border: 1px solid #ddd; }
         .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; }
-        .loc { position: absolute; right: 10px; font-weight: bold; color: #d9534f; }
-        #loading { display: none; text-align: center; padding: 10px; color: #d9534f; font-weight: bold; }
+        .loc { float: right; font-weight: bold; color: #d9534f; }
+        input[type="text"], select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
     </style>
 </head>
 <body>
 
-    <div class="header">📦 СКЛАД КРАСНЫЙ (v.6.0)</div>
+<div class="header">📦 СКЛАД ЧЕРНЫЙ (v.7.0)</div>
 
-    <div class="container">
-        <button class="btn blue" onclick="document.getElementById('fileInp').onclick = () => { window.isNew = true }; document.getElementById('fileInp').click()">➕ ВНЕСТИ ТЕХНИКУ</button>
-        <button class="btn green" onclick="document.getElementById('fileInp').onclick = () => { window.isNew = false }; document.getElementById('fileInp').click()">🔄 ПЕРЕМЕСТИТЬ</button>
+<div id="main-menu">
+    <button class="btn blue" onclick="showAddForm()">➕ ВНЕСТИ НОВУЮ ТЕХНИКУ</button>
+    <button class="btn green" onclick="alert('Для перемещения: введите ID в поиске ниже или используйте камеру (если она заработает в v8)')">🔄 ИНФОРМАЦИЯ / ВЫДАЧА</button>
+</div>
 
-        <input type="file" id="fileInp" accept="image/*" capture="environment" style="display:none" onchange="process(this)">
+<div id="action-zone"></div>
 
-        <div id="loading">ЧИТАЮ КОД...</div>
-        <div id="ui"></div>
-        <div id="list"></div>
-    </div>
+<div class="card">
+    <input type="text" id="search" placeholder="Поиск по Инв. №..." oninput="render()">
+</div>
 
-    <script>
-        let db = JSON.parse(localStorage.getItem('sklad_db')) || [];
-        const LOCS = ["Комплект", ...Array.from({length: 15}, (_, i) => `Лиса-${i + 1}`)];
+<div id="list"></div>
 
-        function process(input) {
-            if (!input.files[0]) return;
-            document.getElementById('loading').style.display = 'block';
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    // Оптимальный размер для jsQR
-                    canvas.width = 600;
-                    canvas.height = (img.height / img.width) * 600;
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    
-                    document.getElementById('loading').style.display = 'none';
-                    if (code) {
-                        window.isNew ? addNew(code.data) : moveItem(code.data);
-                    } else {
-                        alert("QR-код не найден на фото. Попробуйте снять ближе.");
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
-        }
+<hr>
+<button onclick="exportData()" style="width:100%; padding:10px; margin-top:20px;">💾 Сохранить базу в файл</button>
+<input type="file" id="importFile" style="display:none" onchange="importData(this)">
+<button onclick="document.getElementById('importFile').click()" style="width:100%; margin-top:5px; padding:10px;">📂 Загрузить базу</button>
 
-        function addNew(data) {
-            const p = data.split('|');
-            const inv = p[2] ? p[2].trim() : data.trim();
-            const name = p[0] ? p[0].trim() : prompt("Введите название:");
-            if (db.find(i => i.inv === inv)) return alert("Уже в базе!");
-            db.push({ name, inv, loc: "Комплект" });
-            save();
-        }
+<script>
+    // База данных
+    let db = JSON.parse(localStorage.getItem('sklad_v7')) || [];
+    const LOCS = ["Комплект", ...Array.from({length: 15}, (_, i) => `Лиса-${i + 1}`)];
 
-        function moveItem(data) {
-            const inv = data.includes('|') ? data.split('|')[2].trim() : data.trim();
-            const item = db.find(i => i.inv === inv);
-            if (!item) return alert("Не найдено!");
+    // Показать форму добавления
+    function showAddForm() {
+        document.getElementById('action-zone').innerHTML = `
+            <div class="card">
+                <h3>Новая техника</h3>
+                <input type="text" id="newName" placeholder="Название (напр. Рация)">
+                <input type="text" id="newInv" placeholder="Инвентарный № (можно сканером клавиатуры)">
+                <button class="btn blue" onclick="confirmAdd()">ДОБАВИТЬ В БАЗУ</button>
+                <button onclick="document.getElementById('action-zone').innerHTML=''" style="width:100%; background:none; border:none; color:gray;">Отмена</button>
+            </div>
+        `;
+    }
 
-            let opts = LOCS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
-            document.getElementById('ui').innerHTML = `<div class="card">
-                <b>${item.name}</b><br>
-                <select id="nL">${opts}</select>
-                <button class="btn green" onclick="cfrm('${item.inv}')">СОХРАНИТЬ</button>
-            </div>`;
-        }
+    function confirmAdd() {
+        const name = document.getElementById('newName').value;
+        const inv = document.getElementById('newInv').value;
+        if (!name || !inv) return alert("Заполните поля");
+        if (db.find(i => i.inv === inv)) return alert("Такой номер уже есть!");
 
-        function cfrm(inv) {
-            db.find(i => i.inv === inv).loc = document.getElementById('nL').value;
-            save();
-            document.getElementById('ui').innerHTML = '';
-        }
+        db.push({ name, inv, loc: "Комплект" });
+        save();
+        document.getElementById('action-zone').innerHTML = '';
+    }
 
-        function save() {
-            localStorage.setItem('sklad_db', JSON.stringify(db));
-            render();
-        }
+    function moveItem(inv) {
+        const item = db.find(i => i.inv === inv);
+        let opts = LOCS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
+        
+        document.getElementById('action-zone').innerHTML = `
+            <div class="card">
+                <b>${item.name}</b> (ID: ${item.inv})<br>
+                Место: <select id="nL">${opts}</select>
+                <button class="btn green" onclick="saveLoc('${item.inv}')">СОХРАНИТЬ МЕСТО</button>
+            </div>
+        `;
+    }
 
-        function render() {
-            document.getElementById('list').innerHTML = db.map(i => `
-                <div class="item"><span class="loc">${i.loc}</span><b>${i.name}</b><br>ID: ${i.inv}</div>
-            `).reverse().join('');
-        }
+    function saveLoc(inv) {
+        db.find(i => i.inv === inv).loc = document.getElementById('nL').value;
+        save();
+        document.getElementById('action-zone').innerHTML = '';
+    }
 
+    function save() {
+        localStorage.setItem('sklad_v7', JSON.stringify(db));
         render();
-    </script>
+    }
+
+    function render() {
+        const query = document.getElementById('search').value.toLowerCase();
+        const filtered = db.filter(i => i.inv.toLowerCase().includes(query) || i.name.toLowerCase().includes(query));
+        
+        document.getElementById('list').innerHTML = filtered.map(i => `
+            <div class="item" onclick="moveItem('${i.inv}')">
+                <span class="loc">${i.loc}</span>
+                <b>${i.name}</b><br>
+                ID: ${i.inv}
+            </div>
+        `).reverse().join('');
+    }
+
+    function exportData() {
+        const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'base.json';
+        a.click();
+    }
+
+    function importData(input) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            db = JSON.parse(e.target.result);
+            save();
+            alert("Загружено!");
+        };
+        reader.readAsText(input.files);
+    }
+
+    render();
+</script>
 </body>
 </html>
