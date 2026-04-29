@@ -3,31 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>СКЛАД ПРО v5</title>
-    <!-- Подключаем мощную библиотеку ZXing -->
+    <title>СКЛАД ПРО v5.1</title>
+    <!-- Подключаем библиотеку ZXing для профессионального распознавания QR -->
     <script src="https://unpkg.com"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 0; margin: 0; }
         .header { background: #002d5b; color: white; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .version { font-size: 10px; opacity: 0.7; display: block; }
+        .version { font-size: 10px; opacity: 0.7; display: block; margin-bottom: 5px; }
         .container { padding: 15px; }
-        .btn { width: 100%; padding: 18px; margin: 10px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; }
+        .btn { width: 100%; padding: 18px; margin: 10px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; -webkit-tap-highlight-color: transparent; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
-        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; min-height: 40px; }
+        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; min-height: 45px; box-sizing: border-box; }
         .loc { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; }
-        #loading { display: none; text-align: center; padding: 15px; color: #007bff; font-weight: bold; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        #loading { display: none; text-align: center; padding: 15px; color: #007bff; font-weight: bold; }
         select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 16px; background: #fff; border: 1px solid #ccc; }
-        .sync-block { margin-top: 30px; padding: 10px; border-top: 1px dashed #ccc; }
+        .sync-block { margin-top: 30px; padding: 15px; border-top: 1px dashed #ccc; text-align: center; }
+        .secondary-btn { background: #6c757d; color: white; padding: 10px; border: none; border-radius: 8px; width: 100%; margin-top: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <span class="version">СИСТЕМА ОБНОВЛЕНА</span>
-        📦 СКЛАД ПРО v.5.0
+        <span class="version">СИСТЕМА СЖАТИЯ v.5.1</span>
+        📦 СКЛАД ПРО
     </div>
 
     <div class="container">
@@ -36,6 +36,7 @@
             <button class="btn green" style="flex:1" onclick="document.getElementById('inputMove').click()">🔄 ВЫДАТЬ</button>
         </div>
 
+        <!-- Скрытые вызовы камеры -->
         <input type="file" id="inputNew" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, true)">
         <input type="file" id="inputMove" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, false)">
 
@@ -44,9 +45,9 @@
         <div id="list"></div>
 
         <div class="sync-block">
-            <button onclick="exportData()" style="width:100%; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">💾 Скачать базу (JSON)</button>
+            <button class="secondary-btn" onclick="exportData()">💾 Скачать базу (JSON)</button>
             <input type="file" id="importFile" style="display:none" onchange="importData(this)">
-            <button onclick="document.getElementById('importFile').click()" style="width:100%; margin-top:5px; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">📂 Загрузить базу</button>
+            <button class="secondary-btn" onclick="document.getElementById('importFile').click()">📂 Загрузить базу</button>
         </div>
     </div>
 
@@ -61,46 +62,84 @@
             loading.style.display = 'block';
 
             const file = input.files[0];
-            const url = URL.createObjectURL(file);
+            const reader = new FileReader();
 
-            try {
-                const result = await codeReader.decodeFromImageUrl(url);
-                const resText = result.getText();
-                loading.style.display = 'none';
-                if (isNew) addNew(resText); else moveItem(resText);
-            } catch (err) {
-                loading.style.display = 'none';
-                alert("QR не считан. Совет: сфотографируйте код крупнее и при хорошем свете.");
-            } finally {
-                URL.revokeObjectURL(url);
-                input.value = "";
-            }
+            reader.onload = async (e) => {
+                const img = new Image();
+                img.onload = async () => {
+                    // Подготовка холста для улучшения снимка
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Оптимальный размер для ZXing — 1000px
+                    const scale = Math.min(1000 / img.width, 1000 / img.height, 1);
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    try {
+                        // Распознавание кода
+                        const result = await codeReader.decodeFromCanvas(canvas);
+                        const resText = result.getText();
+                        
+                        loading.style.display = 'none';
+                        if (isNew) addNew(resText); else moveItem(resText);
+                    } catch (err) {
+                        loading.style.display = 'none';
+                        alert("QR не считан. Попробуйте сфотографировать код так, чтобы он был четким и в центре кадра.");
+                    } finally {
+                        input.value = "";
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
 
         function addNew(data) {
             const p = data.split('|');
-            if (p.length < 3) return alert("Формат QR: Название|Заводской|Инвентарный");
-            const inv = p[2].trim();
-            if (db.find(i => i.inv === inv)) return alert("ИНВ " + inv + " уже в базе!");
+            let name, sn, inv;
+
+            if (p.length >= 3) {
+                name = p[0].trim();
+                sn = p[1].trim();
+                inv = p[2].trim();
+            } else {
+                inv = data.trim();
+                name = prompt("Название не найдено в QR. Введите вручную:", "Оборудование");
+                if (!name) return;
+                sn = "—";
+            }
+
+            if (db.find(i => i.inv === inv)) {
+                alert("Ошибка: Объект с номером [" + inv + "] уже есть в базе!");
+                return;
+            }
             
-            db.push({ name: p[0].trim(), sn: p[1].trim(), inv: inv, loc: "Комплект" });
+            db.push({ name, sn, inv, loc: "Комплект" });
             save();
-            alert("Добавлено: " + p[0]);
+            alert("Добавлено: " + name + " (в Комплект)");
         }
 
         function moveItem(data) {
             const inv = data.includes('|') ? data.split('|')[2].trim() : data.trim();
             const item = db.find(i => i.inv === inv);
-            if (!item) return alert("Прибор " + inv + " не найден!");
+            
+            if (!item) {
+                alert("Объект [" + inv + "] не найден в базе. Сначала внесите его через кнопку 'ВНЕСТИ'.");
+                return;
+            }
 
             let options = LOCS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
             document.getElementById('ui').innerHTML = `
                 <div class="card" style="border:2px solid #28a745">
                     <b>${item.name}</b><br>
+                    <small>ID: ${item.inv}</small><br>
                     Место: <select id="newLoc">${options}</select>
-                    <button class="btn green" onclick="confirmMove('${item.inv}')">💾 СОХРАНИТЬ</button>
+                    <button class="btn green" onclick="confirmMove('${item.inv}')">💾 СОХРАНИТЬ МЕСТО</button>
                 </div>`;
-            document.getElementById('ui').scrollIntoView();
+            document.getElementById('ui').scrollIntoView({ behavior: 'smooth' });
         }
 
         function confirmMove(inv) {
@@ -108,7 +147,7 @@
             item.loc = document.getElementById('newLoc').value;
             save();
             document.getElementById('ui').innerHTML = '';
-            alert("Перемещено в " + item.loc);
+            alert("Статус обновлен: " + item.loc);
         }
 
         function save() {
@@ -119,19 +158,24 @@
         function render() {
             const listDiv = document.getElementById('list');
             if (db.length === 0) {
-                listDiv.innerHTML = "<p style='color:#999; text-align:center; padding:20px;'>База пуста</p>";
+                listDiv.innerHTML = "<p style='color:#999; text-align:center; padding:20px;'>База оборудования пуста</p>";
                 return;
             }
-            listDiv.innerHTML = "<h3>Инвентарь:</h3>" + db.map(i => `
-                <div class="item"><span class="loc">${i.loc}</span><b>${i.name}</b><br><small>Инв: ${i.inv} | СН: ${i.sn}</small></div>
+            listDiv.innerHTML = "<h3>Инвентарный список:</h3>" + db.map(i => `
+                <div class="item">
+                    <span class="loc">${i.loc}</span>
+                    <b>${i.name}</b><br>
+                    <small>Инв: ${i.inv} | СН: ${i.sn}</small>
+                </div>
             `).reverse().join('');
         }
 
         function exportData() {
+            if (db.length === 0) return alert("База пуста");
             const blob = new Blob([JSON.stringify(db, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'sklad_base.json';
+            a.download = `base_${new Date().toLocaleDateString()}.json`;
             a.click();
         }
 
@@ -141,8 +185,8 @@
                 try {
                     db = JSON.parse(e.target.result);
                     save();
-                    alert("База загружена!");
-                } catch(e) { alert("Ошибка файла"); }
+                    alert("База успешно загружена!");
+                } catch(e) { alert("Ошибка формата файла!"); }
             };
             reader.readAsText(input.files[0]);
         }
