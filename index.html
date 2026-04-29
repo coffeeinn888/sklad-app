@@ -3,60 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Склад Терминал</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Склад</title>
     <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; margin: 0; padding: 15px; color: #333; }
-        h2 { text-align: center; color: #007bff; margin-bottom: 20px; }
-        .btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; box-sizing: border-box; text-align: center; text-decoration: none; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 15px; margin: 0; }
+        .btn { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
         .btn-blue { background: #007bff; }
         .btn-green { background: #28a745; }
-        .btn-purple { background: #6f42c1; }
-        .btn-orange { background: #fd7e14; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 15px; }
         .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; position: relative; }
         .loc-tag { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; font-size: 12px; }
-        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; margin: 10px 0; background: #fff; }
         #loading { display: none; text-align: center; padding: 10px; color: #007bff; font-weight: bold; }
     </style>
 </head>
 <body>
-
-    <h2>📦 Складской Терминал</h2>
-
+    <h2>📦 Склад</h2>
     <div style="display: flex; gap: 10px;">
-        <button class="btn btn-blue" style="flex:1" onclick="document.getElementById('scanNew').click()">➕ ВНЕСТИ (ФОТО)</button>
-        <button class="btn btn-green" style="flex:1" onclick="document.getElementById('scanMove').click()">🔄 ВЫДАТЬ (ФОТО)</button>
+        <button class="btn btn-blue" style="flex:1" onclick="document.getElementById('scanNew').click()">➕ ВНЕСТИ</button>
+        <button class="btn btn-green" style="flex:1" onclick="document.getElementById('scanMove').click()">🔄 ВЫДАТЬ</button>
     </div>
 
-    <!-- Скрытые вызовы камеры -->
     <input type="file" id="scanNew" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this, true)">
     <input type="file" id="scanMove" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this, false)">
 
-    <div id="loading">⌛ Обработка снимка...</div>
+    <div id="loading">⌛ Обработка...</div>
     <div id="transfer-zone"></div>
-
-    <div class="card">
-        <p style="margin-top:0"><b>Синхронизация базой:</b></p>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn btn-purple" style="flex:1" onclick="exportToFile()">💾 Сохранить</button>
-            <label class="btn btn-orange" style="flex:1">
-                📂 Загрузить <input type="file" id="ifile" style="display:none" onchange="importFromFile(event)">
-            </label>
-        </div>
-    </div>
-
     <div id="inventory-list"></div>
-
-    <!-- Обязательный скрытый элемент для работы библиотеки -->
     <div id="qr-reader" style="display:none"></div>
 
+    <!-- Загрузка библиотеки напрямую -->
     <script src="https://jsdelivr.net"></script>
-    <script src="app.js?v=3.0"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-    </script>
+    <script src="app.js?v=4.0"></script>
 </body>
 </html>
