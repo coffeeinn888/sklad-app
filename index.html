@@ -3,107 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>СКЛАД ТЕРМИНАЛ</title>
-    <!-- Подключаем легкую библиотеку сканера -->
-    <script src="https://rawgit.com"></script>
+    <title>СКЛАД ПРО v5</title>
+    <!-- Подключаем мощную библиотеку ZXing -->
+    <script src="https://unpkg.com"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 15px; margin: 0; }
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 0; margin: 0; }
+        .header { background: #002d5b; color: white; padding: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .version { font-size: 10px; opacity: 0.7; display: block; }
+        .container { padding: 15px; }
         .btn { width: 100%; padding: 18px; margin: 10px 0; border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
-        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; }
+        .item { background: white; padding: 12px; margin-top: 8px; border-radius: 10px; border-left: 5px solid #007bff; font-size: 14px; position: relative; min-height: 40px; }
         .loc { position: absolute; right: 10px; top: 12px; font-weight: bold; color: #d9534f; }
-        #loading { display: none; text-align: center; padding: 10px; color: #007bff; }
-        select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 16px; }
+        #loading { display: none; text-align: center; padding: 15px; color: #007bff; font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 16px; background: #fff; border: 1px solid #ccc; }
+        .sync-block { margin-top: 30px; padding: 10px; border-top: 1px dashed #ccc; }
     </style>
 </head>
 <body>
 
-    <h2>📦 СКЛАД</h2>
-
-    <div style="display: flex; gap: 10px;">
-        <button class="btn blue" style="flex:1" onclick="document.getElementById('inputNew').click()">➕ ВНЕСТИ</button>
-        <button class="btn green" style="flex:1" onclick="document.getElementById('inputMove').click()">🔄 ВЫДАТЬ</button>
+    <div class="header">
+        <span class="version">СИСТЕМА ОБНОВЛЕНА</span>
+        📦 СКЛАД ПРО v.5.0
     </div>
 
-    <!-- Системные кнопки камеры -->
-    <input type="file" id="inputNew" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, true)">
-    <input type="file" id="inputMove" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, false)">
+    <div class="container">
+        <div style="display: flex; gap: 10px;">
+            <button class="btn blue" style="flex:1" onclick="document.getElementById('inputNew').click()">➕ ВНЕСТИ</button>
+            <button class="btn green" style="flex:1" onclick="document.getElementById('inputMove').click()">🔄 ВЫДАТЬ</button>
+        </div>
 
-    <div id="loading">⌛ Обработка фото...</div>
-    <div id="ui"></div>
-    <div id="list"></div>
+        <input type="file" id="inputNew" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, true)">
+        <input type="file" id="inputMove" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this, false)">
 
-    <hr>
-    <button onclick="exportData()" style="width:100%; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">💾 Скачать базу (JSON)</button>
-    <input type="file" id="importFile" style="display:none" onchange="importData(this)">
-    <button onclick="document.getElementById('importFile').click()" style="width:100%; margin-top:5px; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">📂 Загрузить базу</button>
+        <div id="loading">⌛ ИДЕТ РАСПОЗНАВАНИЕ...</div>
+        <div id="ui"></div>
+        <div id="list"></div>
+
+        <div class="sync-block">
+            <button onclick="exportData()" style="width:100%; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">💾 Скачать базу (JSON)</button>
+            <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+            <button onclick="document.getElementById('importFile').click()" style="width:100%; margin-top:5px; padding:10px; background:#6c757d; color:white; border:none; border-radius:8px;">📂 Загрузить базу</button>
+        </div>
+    </div>
 
     <script>
         let db = JSON.parse(localStorage.getItem('sklad_db')) || [];
         const LOCS = ["Комплект", ...Array.from({length: 15}, (_, i) => `Лиса-${i + 1}`)];
+        const codeReader = new ZXing.BrowserQRCodeReader();
 
-        // Функция обработки фото
-        function handleFile(input, isNew) {
-            if (!input.files[0]) return;
-            document.getElementById('loading').style.display = 'block';
+        async function handleFile(input, isNew) {
+            if (!input.files || input.files.length === 0) return;
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    // Сжимаем фото перед чтением
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 600;
-                    canvas.height = (img.height / img.width) * 600;
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    // Пробуем распознать
-                    try {
-                        qrcode.callback = (res) => {
-                            document.getElementById('loading').style.display = 'none';
-                            if (res.indexOf("error") === -1) {
-                                if (isNew) addNew(res); else moveItem(res);
-                            } else {
-                                alert("QR не найден. Попробуйте еще раз.");
-                            }
-                        };
-                        qrcode.decode(canvas.toDataURL("image/jpeg"));
-                    } catch(err) {
-                        alert("Ошибка распознавания");
-                        document.getElementById('loading').style.display = 'none';
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
+            const file = input.files[0];
+            const url = URL.createObjectURL(file);
+
+            try {
+                const result = await codeReader.decodeFromImageUrl(url);
+                const resText = result.getText();
+                loading.style.display = 'none';
+                if (isNew) addNew(resText); else moveItem(resText);
+            } catch (err) {
+                loading.style.display = 'none';
+                alert("QR не считан. Совет: сфотографируйте код крупнее и при хорошем свете.");
+            } finally {
+                URL.revokeObjectURL(url);
+                input.value = "";
+            }
         }
 
         function addNew(data) {
             const p = data.split('|');
             if (p.length < 3) return alert("Формат QR: Название|Заводской|Инвентарный");
             const inv = p[2].trim();
-            if (db.find(i => i.inv === inv)) return alert("Уже в базе!");
+            if (db.find(i => i.inv === inv)) return alert("ИНВ " + inv + " уже в базе!");
             
             db.push({ name: p[0].trim(), sn: p[1].trim(), inv: inv, loc: "Комплект" });
             save();
-            alert("Добавлено в Комплект");
+            alert("Добавлено: " + p[0]);
         }
 
         function moveItem(data) {
             const inv = data.includes('|') ? data.split('|')[2].trim() : data.trim();
             const item = db.find(i => i.inv === inv);
-            if (!item) return alert("Не найдено в базе!");
+            if (!item) return alert("Прибор " + inv + " не найден!");
 
             let options = LOCS.map(l => `<option value="${l}" ${item.loc === l ? 'selected' : ''}>${l}</option>`).join('');
             document.getElementById('ui').innerHTML = `
                 <div class="card" style="border:2px solid #28a745">
-                    <b>${item.name}</b> (Инв: ${item.inv})<br>
+                    <b>${item.name}</b><br>
                     Место: <select id="newLoc">${options}</select>
                     <button class="btn green" onclick="confirmMove('${item.inv}')">💾 СОХРАНИТЬ</button>
                 </div>`;
+            document.getElementById('ui').scrollIntoView();
         }
 
         function confirmMove(inv) {
@@ -111,7 +108,7 @@
             item.loc = document.getElementById('newLoc').value;
             save();
             document.getElementById('ui').innerHTML = '';
-            alert("Обновлено");
+            alert("Перемещено в " + item.loc);
         }
 
         function save() {
@@ -120,25 +117,32 @@
         }
 
         function render() {
-            document.getElementById('list').innerHTML = "<h3>Инвентарь:</h3>" + db.map(i => `
-                <div class="item"><span class="loc">${i.loc}</span><b>${i.name}</b><br><small>Инв: ${i.inv}</small></div>
+            const listDiv = document.getElementById('list');
+            if (db.length === 0) {
+                listDiv.innerHTML = "<p style='color:#999; text-align:center; padding:20px;'>База пуста</p>";
+                return;
+            }
+            listDiv.innerHTML = "<h3>Инвентарь:</h3>" + db.map(i => `
+                <div class="item"><span class="loc">${i.loc}</span><b>${i.name}</b><br><small>Инв: ${i.inv} | СН: ${i.sn}</small></div>
             `).reverse().join('');
         }
 
         function exportData() {
-            const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+            const blob = new Blob([JSON.stringify(db, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'sklad.json';
+            a.download = 'sklad_base.json';
             a.click();
         }
 
         function importData(input) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                db = JSON.parse(e.target.result);
-                save();
-                alert("База загружена");
+                try {
+                    db = JSON.parse(e.target.result);
+                    save();
+                    alert("База загружена!");
+                } catch(e) { alert("Ошибка файла"); }
             };
             reader.readAsText(input.files[0]);
         }
